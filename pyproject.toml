@@ -1,0 +1,52 @@
+[project]
+name = "reqspec"
+version = "0.1.0"
+description = "A declarative HTTP client."
+readme = "README.md"
+requires-python = ">=3.14"
+license = "MIT"
+license-files = ["LICENCE"]
+authors = [
+  { name = "Leyton Addison-Roach", email = "git@laddisonroach.com" },
+]
+dependencies = [
+  "niquests[speedups]>=3.19.1",
+  "pydantic>=2.13.4",
+]
+
+[dependency-groups]
+dev = [
+  "ruff>=0.15.16",
+  "ty>=0.0.48",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.19,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+line-length = 79
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+  "W191",
+  "E111",
+  "E114",
+  "E117",
+  "D206",
+  "D300",
+  "Q000",
+  "Q001",
+  "Q002",
+  "Q003",
+  "Q004",
+  "COM812",
+  "COM819",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
