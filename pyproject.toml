@@ -9,10 +9,15 @@ license-files = ["LICENCE"]
 authors = [
   { name = "Leyton Addison-Roach", email = "git@laddisonroach.com" },
 ]
+keywords = ["http", "niquests", "pydantic"]
 dependencies = [
   "niquests[speedups]>=3.19.1",
   "pydantic>=2.13.4",
 ]
+
+[project.urls]
+Issues = "https://github.com/leyts/reqspec/issues"
+Repository = "https://github.com/leyts/reqspec"
 
 [dependency-groups]
 dev = [
