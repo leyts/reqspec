@@ -16,7 +16,6 @@ from typing import (
     NamedTuple,
     get_args,
     get_origin,
-    get_type_hints,
 )
 
 from niquests import Response
@@ -81,7 +80,7 @@ class ReturnSpec:
         if self._fn is None:  # pragma: no cover - defensive
             msg = "deferred return type without source function"
             raise TypeError(msg)
-        hints = get_type_hints(self._fn)
+        hints = get_annotations(self._fn, format=Format.VALUE)
         self._adapter = _adapter_for(hints["return"])
         return self._adapter
 
