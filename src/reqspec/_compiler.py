@@ -25,8 +25,8 @@ from pydantic import BaseModel, TypeAdapter
 from reqspec._markers import Body, Header, Marker, Path, Query
 
 if TYPE_CHECKING:
-    from reqspec.decorators import EndpointSpec
-    from reqspec.exceptions import APIError
+    from reqspec._decorators import EndpointSpec
+    from reqspec._exceptions import APIError
 
 type _Fn = Callable[..., object]
 
