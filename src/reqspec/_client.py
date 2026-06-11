@@ -2,7 +2,7 @@
 
 import functools
 from collections.abc import Callable, Mapping
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 from urllib.parse import quote
 
 import niquests
@@ -13,10 +13,14 @@ from reqspec._decorators import STASH_ATTR, EndpointSpec
 from reqspec._exceptions import APIError, raise_for_response
 
 if TYPE_CHECKING:
-    from niquests.typing import HttpAuthenticationType, TimeoutType
+    from niquests.typing import (
+        HttpAuthenticationType,
+        QueryParameterType,
+        TimeoutType,
+    )
 
 type _Fn = Callable[..., object]
-type _QueryValue = str | list[str]
+
 
 _SUCCESS = range(200, 300)
 
@@ -139,12 +143,6 @@ def _bind_arguments(
     return values
 
 
-def _query_value(value: object) -> _QueryValue:
-    if isinstance(value, list | tuple):
-        return [v if isinstance(v, str) else str(v) for v in value]
-    return value if isinstance(value, str) else str(value)
-
-
 def _make_endpoint(plan: RequestPlan) -> _Fn:
     def endpoint(self: Client, *args: object, **kwargs: object) -> object:
         values = _bind_arguments(plan, args, kwargs)
@@ -156,11 +154,15 @@ def _make_endpoint(plan: RequestPlan) -> _Fn:
         pieces.append(plan.url_parts[-1])
         url = "".join(pieces)
 
-        params = {
-            slot.wire: _query_value(value)
-            for slot in plan.query_slots
-            if (value := values[slot.pyname]) is not None
-        }
+        # niquests stringifies values itself; its stub type is narrower
+        params = cast(
+            "QueryParameterType",
+            {
+                slot.wire: value
+                for slot in plan.query_slots
+                if (value := values[slot.pyname]) is not None
+            },
+        )
         headers = dict(plan.static_headers)
         for slot in plan.header_slots:
             value = values[slot.pyname]
