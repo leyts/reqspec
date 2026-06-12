@@ -80,19 +80,19 @@ class Client:
         self._auth = auth
         self._timeout = timeout
 
-
-def update_class_config(
-    cls: type[Client],
-    *,
-    headers: dict[str, str] | None = None,
-    raises: dict[int, type[APIError]] | None = None,
-) -> None:
-    """Apply config from class-level decorators and recompile."""
-    if headers:
-        cls._reqspec_headers.update(headers)
-    if raises:
-        cls._reqspec_raises.update(raises)
-    compile_all(cls)
+    @classmethod
+    def _reqspec_configure(
+        cls,
+        *,
+        headers: dict[str, str] | None = None,
+        raises: dict[int, type[APIError]] | None = None,
+    ) -> None:
+        """Apply config from class-level decorators and recompile."""
+        if headers:
+            cls._reqspec_headers.update(headers)
+        if raises:
+            cls._reqspec_raises.update(raises)
+        compile_all(cls)
 
 
 def compile_all(cls: type[Client]) -> None:

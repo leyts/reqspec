@@ -6,12 +6,9 @@ Every decorator here only records metadata on the decorated function
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 from reqspec._exceptions import APIError
-
-if TYPE_CHECKING:
-    from reqspec._client import Client
 
 STASH_ATTR = "__reqspec__"
 
@@ -96,10 +93,6 @@ def raises[T: type | Fn](mapping: Mapping[int, object]) -> Callable[[T], T]:
     return apply
 
 
-def is_client_class(target: object) -> bool:
-    return isinstance(target, type) and hasattr(target, "_reqspec_endpoints")
-
-
 def apply_config(
     target: object,
     *,
@@ -107,29 +100,17 @@ def apply_config(
     raises: dict[int, type[APIError]] | None = None,
 ) -> None:
     if isinstance(target, type):
-        update_class(target, headers=headers, raises=raises)
+        configure = getattr(target, "_reqspec_configure", None)
+        if configure is None:
+            msg = (
+                f"@headers/@raises can only be applied to reqspec Client"
+                f" subclasses; got {target.__name__!r}"
+            )
+            raise TypeError(msg)
+        configure(headers=headers, raises=raises)
         return
     spec = spec_of(cast("Fn", target))
     if headers is not None:
         spec.headers.update(headers)
     if raises is not None:
         spec.raises.update(raises)
-
-
-def update_class(
-    target: type,
-    *,
-    headers: dict[str, str] | None = None,
-    raises: dict[int, type[APIError]] | None = None,
-) -> None:
-    if not is_client_class(target):
-        msg = (
-            f"@headers/@raises can only be applied to reqspec Client"
-            f" subclasses; got {target.__name__!r}"
-        )
-        raise TypeError(msg)
-    from reqspec._client import update_class_config  # noqa: PLC0415
-
-    update_class_config(
-        cast("type[Client]", target), headers=headers, raises=raises
-    )
