@@ -1,7 +1,6 @@
 """Client base class: endpoint compilation and the per-call hot path."""
 
 import functools
-from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, ClassVar, cast
 from urllib.parse import quote
 
@@ -9,17 +8,18 @@ import niquests
 from pydantic import BaseModel
 
 from reqspec._compiler import RequestPlan, _adapter_for, compile_endpoint
-from reqspec._decorators import STASH_ATTR, EndpointSpec
+from reqspec._decorators import STASH_ATTR, EndpointSpec, Fn
 from reqspec._exceptions import APIError, raise_for_response
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from niquests.typing import (
         HttpAuthenticationType,
         QueryParameterType,
         TimeoutType,
     )
 
-type _Fn = Callable[..., object]
 
 
 _SUCCESS = range(200, 300)
@@ -36,7 +36,7 @@ class Client:
     """
 
     _reqspec_base_url: ClassVar[str | None] = None
-    _reqspec_endpoints: ClassVar[dict[str, _Fn]] = {}
+    _reqspec_endpoints: ClassVar[dict[str, Fn]] = {}
     _reqspec_headers: ClassVar[dict[str, str]] = {}
     _reqspec_raises: ClassVar[dict[int, type[APIError]]] = {}
 
@@ -143,7 +143,7 @@ def _bind_arguments(
     return values
 
 
-def _make_endpoint(plan: RequestPlan) -> _Fn:
+def _make_endpoint(plan: RequestPlan) -> Fn:
     def endpoint(self: Client, *args: object, **kwargs: object) -> object:
         values = _bind_arguments(plan, args, kwargs)
 

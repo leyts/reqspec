@@ -6,7 +6,6 @@ endpoint. The per-call hot path only touches the resulting RequestPlan.
 
 import string
 from annotationlib import Format, ForwardRef, get_annotations
-from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum, auto
 from inspect import Parameter, signature
@@ -24,10 +23,9 @@ from pydantic import BaseModel, TypeAdapter
 from reqspec._markers import Body, Header, Marker, Path, Query
 
 if TYPE_CHECKING:
-    from reqspec._decorators import EndpointSpec
+    from reqspec._decorators import EndpointSpec, Fn
     from reqspec._exceptions import APIError
 
-type _Fn = Callable[..., object]
 
 _MISSING = object()
 _adapters: dict[object, TypeAdapter[object]] = {}
@@ -51,7 +49,7 @@ class ReturnSpec:
         self,
         kind: _ReturnKind,
         adapter: TypeAdapter[object] | None = None,
-        fn: _Fn | None = None,
+        fn: Fn | None = None,
     ) -> None:
         self.kind = kind
         self._adapter = adapter
@@ -180,7 +178,7 @@ _SENTINEL_KINDS: dict[object, _ReturnKind] = {
 }
 
 
-def _return_spec(fn: _Fn) -> ReturnSpec:
+def _return_spec(fn: Fn) -> ReturnSpec:
     annotation = get_annotations(fn, format=Format.FORWARDREF).get(
         "return", _MISSING
     )
@@ -269,7 +267,7 @@ def _check_placeholders(
 
 
 def compile_endpoint(
-    fn: _Fn,
+    fn: Fn,
     spec: EndpointSpec,
     *,
     class_headers: dict[str, str],

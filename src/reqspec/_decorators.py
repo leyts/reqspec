@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 STASH_ATTR = "__reqspec__"
 
-type _Fn = Callable[..., object]
+type Fn = Callable[..., object]
 
 
 @dataclass(slots=True)
@@ -28,7 +28,7 @@ class EndpointSpec:
     raises: dict[int, type[APIError]] = field(default_factory=dict)
 
 
-def spec_of(fn: _Fn) -> EndpointSpec:
+def spec_of(fn: Fn) -> EndpointSpec:
     """Get or create the EndpointSpec stashed on a function."""
     spec = getattr(fn, STASH_ATTR, None)
     if spec is None:
@@ -37,7 +37,7 @@ def spec_of(fn: _Fn) -> EndpointSpec:
     return spec
 
 
-def _http[F: _Fn](method: str) -> Callable[[str], Callable[[F], F]]:
+def _http[F: Fn](method: str) -> Callable[[str], Callable[[F], F]]:
     def with_template(template: str) -> Callable[[F], F]:
         def apply(fn: F) -> F:
             spec = spec_of(fn)
@@ -64,7 +64,7 @@ patch = _http("PATCH")
 delete = _http("DELETE")
 
 
-def headers[T: type | _Fn](mapping: Mapping[str, str]) -> Callable[[T], T]:
+def headers[T: type | Fn](mapping: Mapping[str, str]) -> Callable[[T], T]:
     """Attach static headers to an endpoint or a whole client class."""
     static = dict(mapping)
 
@@ -75,7 +75,7 @@ def headers[T: type | _Fn](mapping: Mapping[str, str]) -> Callable[[T], T]:
     return apply
 
 
-def raises[T: type | _Fn](mapping: Mapping[int, object]) -> Callable[[T], T]:
+def raises[T: type | Fn](mapping: Mapping[int, object]) -> Callable[[T], T]:
     """Map response status codes to typed APIError subclasses."""
     mapped: dict[int, type[APIError]] = {}
 
@@ -109,7 +109,7 @@ def _apply_config(
     if isinstance(target, type):
         _update_class(target, headers=headers, raises=raises)
         return
-    spec = spec_of(cast("_Fn", target))
+    spec = spec_of(cast("Fn", target))
     if headers is not None:
         spec.headers.update(headers)
     if raises is not None:
