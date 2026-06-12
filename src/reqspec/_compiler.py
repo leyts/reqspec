@@ -8,7 +8,7 @@ import string
 from annotationlib import Format, ForwardRef, get_annotations
 from collections.abc import Callable
 from dataclasses import dataclass
-from inspect import Parameter, signature
+from inspect import Parameter, Signature, signature
 from typing import (
     TYPE_CHECKING,
     Annotated,
@@ -73,9 +73,7 @@ class RequestPlan:
     body_name: str | None
     static_headers: tuple[tuple[str, str], ...]
     raises_map: dict[int, type[APIError]]
-    arg_names: tuple[str, ...]
-    required: tuple[str, ...]
-    defaults: tuple[tuple[str, object], ...]
+    signature: Signature
     returns: ReturnLoader
 
 
@@ -270,12 +268,6 @@ def compile_endpoint(
         body_name=resolve_body(classified, where),
         static_headers=tuple({**class_headers, **spec.headers}.items()),
         raises_map={**class_raises, **spec.raises},
-        arg_names=tuple(p.name for p in params),
-        required=tuple(p.name for p in params if p.default is Parameter.empty),
-        defaults=tuple(
-            (p.name, p.default)
-            for p in params
-            if p.default is not Parameter.empty
-        ),
+        signature=sig.replace(parameters=params),
         returns=return_loader(fn),
     )

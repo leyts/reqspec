@@ -109,42 +109,11 @@ def compile_all(cls: type[Client]) -> None:
         setattr(cls, name, endpoint)
 
 
-def bind_arguments(
-    plan: RequestPlan,
-    args: tuple[object, ...],
-    kwargs: dict[str, object],
-) -> dict[str, object]:
-    names = plan.arg_names
-
-    if len(args) > len(names):
-        msg = f"expected at most {len(names)} arguments, got {len(args)}"
-        raise TypeError(msg)
-
-    values = dict(plan.defaults)
-    for name, value in zip(names, args, strict=False):
-        if name in kwargs:
-            msg = f"got multiple values for argument {name!r}"
-            raise TypeError(msg)
-        values[name] = value
-
-    for name in kwargs:
-        if name not in names:
-            msg = f"got an unexpected keyword argument {name!r}"
-            raise TypeError(msg)
-
-    values |= kwargs
-
-    missing = [n for n in plan.required if n not in values]
-
-    if missing:
-        msg = f"missing required arguments: {', '.join(missing)}"
-        raise TypeError(msg)
-    return values
-
-
 def make_endpoint(plan: RequestPlan) -> Fn:
     def endpoint(self: Client, *args: object, **kwargs: object) -> object:
-        values = bind_arguments(plan, args, kwargs)
+        bound = plan.signature.bind(*args, **kwargs)
+        bound.apply_defaults()
+        values = bound.arguments
 
         pieces = [self._base]
         for i, pyname in enumerate(plan.path_names):
