@@ -106,7 +106,11 @@ def marker_of(annotation: object, where: str) -> tuple[object, Marker | None]:
     if get_origin(annotation) is not Annotated:
         return annotation, None
     base, *extras = get_args(annotation)
-    found = [e for e in extras if isinstance(e, Path | Query | Header | Body)]
+    for extra in extras:
+        if isinstance(extra, type) and issubclass(extra, Marker):
+            msg = f"{where}: marker {extra.__name__} must be instantiated."
+            raise TypeError(msg)
+    found = [e for e in extras if isinstance(e, Marker)]
     if len(found) > 1:
         kinds = ", ".join(type(m).__name__ for m in found)
         msg = f"{where}: conflicting markers ({kinds})"

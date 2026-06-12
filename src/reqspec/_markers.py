@@ -2,7 +2,11 @@
 
 from dataclasses import dataclass
 
-type Marker = Path | Query | Header | Body
+
+class Marker:
+    """Base class for parameter binding markers."""
+
+    __slots__ = ()
 
 
 def to_header_case(name: str) -> str:
@@ -11,21 +15,21 @@ def to_header_case(name: str) -> str:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class Path:
+class Path(Marker):
     """Bind a parameter to a URL template placeholder."""
 
     name: str | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class Query:
+class Query(Marker):
     """Bind a parameter to a query string key."""
 
     name: str | None = None
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class Header:
+class Header(Marker):
     """Bind a parameter to a request header."""
 
     name: str | None = None
@@ -41,5 +45,5 @@ class Header:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class Body:
+class Body(Marker):
     """Bind a parameter to the JSON request body."""
