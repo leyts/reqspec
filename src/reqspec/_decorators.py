@@ -37,7 +37,7 @@ def spec_of(fn: Fn) -> EndpointSpec:
     return spec
 
 
-def _http[F: Fn](method: str) -> Callable[[str], Callable[[F], F]]:
+def http_method[F: Fn](method: str) -> Callable[[str], Callable[[F], F]]:
     def with_template(template: str) -> Callable[[F], F]:
         def apply(fn: F) -> F:
             spec = spec_of(fn)
@@ -57,11 +57,11 @@ def _http[F: Fn](method: str) -> Callable[[str], Callable[[F], F]]:
     return with_template
 
 
-get = _http("GET")
-post = _http("POST")
-put = _http("PUT")
-patch = _http("PATCH")
-delete = _http("DELETE")
+get = http_method("GET")
+post = http_method("POST")
+put = http_method("PUT")
+patch = http_method("PATCH")
+delete = http_method("DELETE")
 
 
 def headers[T: type | Fn](mapping: Mapping[str, str]) -> Callable[[T], T]:
@@ -69,7 +69,7 @@ def headers[T: type | Fn](mapping: Mapping[str, str]) -> Callable[[T], T]:
     static = dict(mapping)
 
     def apply(target: T) -> T:
-        _apply_config(target, headers=static)
+        apply_config(target, headers=static)
         return target
 
     return apply
@@ -90,24 +90,24 @@ def raises[T: type | Fn](mapping: Mapping[int, object]) -> Callable[[T], T]:
         mapped[status] = exc_type
 
     def apply(target: T) -> T:
-        _apply_config(target, raises=mapped)
+        apply_config(target, raises=mapped)
         return target
 
     return apply
 
 
-def _is_client_class(target: object) -> bool:
+def is_client_class(target: object) -> bool:
     return isinstance(target, type) and hasattr(target, "_reqspec_endpoints")
 
 
-def _apply_config(
+def apply_config(
     target: object,
     *,
     headers: dict[str, str] | None = None,
     raises: dict[int, type[APIError]] | None = None,
 ) -> None:
     if isinstance(target, type):
-        _update_class(target, headers=headers, raises=raises)
+        update_class(target, headers=headers, raises=raises)
         return
     spec = spec_of(cast("Fn", target))
     if headers is not None:
@@ -116,13 +116,13 @@ def _apply_config(
         spec.raises.update(raises)
 
 
-def _update_class(
+def update_class(
     target: type,
     *,
     headers: dict[str, str] | None = None,
     raises: dict[int, type[APIError]] | None = None,
 ) -> None:
-    if not _is_client_class(target):
+    if not is_client_class(target):
         msg = (
             f"@headers/@raises can only be applied to reqspec Client"
             f" subclasses; got {target.__name__!r}"

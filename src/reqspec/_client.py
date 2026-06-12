@@ -7,7 +7,7 @@ from urllib.parse import quote
 import niquests
 from pydantic import BaseModel
 
-from reqspec._compiler import RequestPlan, _adapter_for, compile_endpoint
+from reqspec._compiler import RequestPlan, adapter_for, compile_endpoint
 from reqspec._decorators import STASH_ATTR, EndpointSpec, Fn
 from reqspec._exceptions import APIError, raise_for_response
 
@@ -21,8 +21,7 @@ if TYPE_CHECKING:
     )
 
 
-
-_SUCCESS = range(200, 300)
+SUCCESS = range(200, 300)
 
 
 class Client:
@@ -56,7 +55,7 @@ class Client:
         }
         cls._reqspec_headers = dict(cls._reqspec_headers)
         cls._reqspec_raises = dict(cls._reqspec_raises)
-        _compile_all(cls)
+        compile_all(cls)
 
     def __init__(
         self,
@@ -93,10 +92,10 @@ def update_class_config(
         cls._reqspec_headers.update(headers)
     if raises:
         cls._reqspec_raises.update(raises)
-    _compile_all(cls)
+    compile_all(cls)
 
 
-def _compile_all(cls: type[Client]) -> None:
+def compile_all(cls: type[Client]) -> None:
     for name, fn in cls._reqspec_endpoints.items():
         spec: EndpointSpec = getattr(fn, STASH_ATTR)
         plan = compile_endpoint(
@@ -105,12 +104,12 @@ def _compile_all(cls: type[Client]) -> None:
             class_headers=cls._reqspec_headers,
             class_raises=cls._reqspec_raises,
         )
-        endpoint = _make_endpoint(plan)
+        endpoint = make_endpoint(plan)
         functools.update_wrapper(endpoint, fn)
         setattr(cls, name, endpoint)
 
 
-def _bind_arguments(
+def bind_arguments(
     plan: RequestPlan,
     args: tuple[object, ...],
     kwargs: dict[str, object],
@@ -143,9 +142,9 @@ def _bind_arguments(
     return values
 
 
-def _make_endpoint(plan: RequestPlan) -> Fn:
+def make_endpoint(plan: RequestPlan) -> Fn:
     def endpoint(self: Client, *args: object, **kwargs: object) -> object:
-        values = _bind_arguments(plan, args, kwargs)
+        values = bind_arguments(plan, args, kwargs)
 
         pieces = [self._base]
         for i, pyname in enumerate(plan.path_names):
@@ -174,7 +173,7 @@ def _make_endpoint(plan: RequestPlan) -> Fn:
         if plan.body_name is not None:
             payload = values[plan.body_name]
             if isinstance(payload, BaseModel):
-                data = _adapter_for(type(payload)).dump_json(payload)
+                data = adapter_for(type(payload)).dump_json(payload)
                 headers.setdefault("Content-Type", "application/json")
             else:
                 json = payload
@@ -189,8 +188,8 @@ def _make_endpoint(plan: RequestPlan) -> Fn:
             auth=self._auth,
             timeout=self._timeout,
         )
-        status = response.status_code or 0
-        if status not in _SUCCESS:
+        status = response.status_code or 0  # None on unresolved lazy responses
+        if status not in SUCCESS:
             raise_for_response(response, plan.raises_map)
         return plan.returns.load(response)
 

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 type Marker = Path | Query | Header | Body
 
 
-def _to_header_case(name: str) -> str:
+def to_header_case(name: str) -> str:
     """Convert a snake_case name to header case."""
     return "-".join(part.capitalize() for part in name.split("_"))
 
@@ -36,7 +36,7 @@ class Header:
         if self.name is not None:
             return self.name
         if self.convert_underscores:
-            return _to_header_case(pyname)
+            return to_header_case(pyname)
         return pyname
 
 

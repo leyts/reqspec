@@ -27,11 +27,11 @@ if TYPE_CHECKING:
     from reqspec._exceptions import APIError
 
 
-_MISSING = object()
-_adapters: dict[object, TypeAdapter[object]] = {}
+MISSING = object()
+adapters: dict[object, TypeAdapter[object]] = {}
 
 
-class _ReturnKind(StrEnum):
+class ReturnKind(StrEnum):
     RAW = auto()
     NONE = auto()
     BYTES = auto()
@@ -47,7 +47,7 @@ class ReturnSpec:
 
     def __init__(
         self,
-        kind: _ReturnKind,
+        kind: ReturnKind,
         adapter: TypeAdapter[object] | None = None,
         fn: Fn | None = None,
     ) -> None:
@@ -58,18 +58,18 @@ class ReturnSpec:
     def load(self, response: Response) -> object:
         """Parse a successful response per the return annotation."""
         match self.kind:
-            case _ReturnKind.MODEL:
+            case ReturnKind.MODEL:
                 adapter = self._adapter
                 if adapter is None:
                     adapter = self._build_deferred()
                 return adapter.validate_json(response.content or b"")
-            case _ReturnKind.RAW:
+            case ReturnKind.RAW:
                 return response
-            case _ReturnKind.NONE:
+            case ReturnKind.NONE:
                 return None
-            case _ReturnKind.BYTES:
+            case ReturnKind.BYTES:
                 return response.content
-            case _ReturnKind.TEXT:
+            case ReturnKind.TEXT:
                 return response.text
             case _:
                 return response.json()
@@ -79,7 +79,7 @@ class ReturnSpec:
             msg = "deferred return type without source function"
             raise TypeError(msg)
         hints = get_annotations(self._fn, format=Format.VALUE)
-        self._adapter = _adapter_for(hints["return"])
+        self._adapter = adapter_for(hints["return"])
         return self._adapter
 
 
@@ -133,7 +133,7 @@ def split_template(
     return tuple(parts), tuple(names)
 
 
-def _marker_of(annotation: object, where: str) -> tuple[object, Marker | None]:
+def marker_of(annotation: object, where: str) -> tuple[object, Marker | None]:
     """Extract (base type, reqspec marker) from a parameter annotation."""
     if get_origin(annotation) is not Annotated:
         return annotation, None
@@ -146,56 +146,56 @@ def _marker_of(annotation: object, where: str) -> tuple[object, Marker | None]:
     return base, found[0] if found else None
 
 
-def _is_model(base: object) -> bool:
+def is_model(base: object) -> bool:
     return isinstance(base, type) and issubclass(base, BaseModel)
 
 
-def _adapter_for(annotation: object) -> TypeAdapter[object]:
+def adapter_for(annotation: object) -> TypeAdapter[object]:
     try:
-        cached = _adapters.get(annotation)
+        cached = adapters.get(annotation)
     except TypeError:
         return TypeAdapter(annotation)
     if cached is None:
         cached = TypeAdapter(annotation)
-        _adapters[annotation] = cached
+        adapters[annotation] = cached
     return cached
 
 
-def _is_unresolved(annotation: object) -> bool:
+def is_unresolved(annotation: object) -> bool:
     """Whether an annotation still contains unevaluated forward refs."""
     if isinstance(annotation, str | ForwardRef):
         return True
-    return any(_is_unresolved(arg) for arg in get_args(annotation))
+    return any(is_unresolved(arg) for arg in get_args(annotation))
 
 
-_SENTINEL_KINDS: dict[object, _ReturnKind] = {
-    Response: _ReturnKind.RAW,
-    None: _ReturnKind.NONE,
-    type(None): _ReturnKind.NONE,
-    bytes: _ReturnKind.BYTES,
-    str: _ReturnKind.TEXT,
-    dict: _ReturnKind.JSON,
+SENTINEL_KINDS: dict[object, ReturnKind] = {
+    Response: ReturnKind.RAW,
+    None: ReturnKind.NONE,
+    type(None): ReturnKind.NONE,
+    bytes: ReturnKind.BYTES,
+    str: ReturnKind.TEXT,
+    dict: ReturnKind.JSON,
 }
 
 
-def _return_spec(fn: Fn) -> ReturnSpec:
+def return_spec(fn: Fn) -> ReturnSpec:
     annotation = get_annotations(fn, format=Format.FORWARDREF).get(
-        "return", _MISSING
+        "return", MISSING
     )
-    if annotation is _MISSING:
-        return ReturnSpec(_ReturnKind.RAW)
+    if annotation is MISSING:
+        return ReturnSpec(ReturnKind.RAW)
     try:
-        kind = _SENTINEL_KINDS.get(annotation)
+        kind = SENTINEL_KINDS.get(annotation)
     except TypeError:
         kind = None
     if kind is not None:
         return ReturnSpec(kind)
-    if _is_unresolved(annotation):
-        return ReturnSpec(_ReturnKind.MODEL, fn=fn)
-    return ReturnSpec(_ReturnKind.MODEL, adapter=_adapter_for(annotation))
+    if is_unresolved(annotation):
+        return ReturnSpec(ReturnKind.MODEL, fn=fn)
+    return ReturnSpec(ReturnKind.MODEL, adapter=adapter_for(annotation))
 
 
-class _Classified(NamedTuple):
+class Classified(NamedTuple):
     path_map: dict[str, str]
     query_slots: list[Slot]
     header_slots: list[Slot]
@@ -203,16 +203,16 @@ class _Classified(NamedTuple):
     inferred_models: list[str]
 
 
-def _classify_params(
+def classify_params(
     params: list[Parameter],
     placeholders: tuple[str, ...],
     where: str,
-) -> _Classified:
+) -> Classified:
     """Sort parameters into path/query/header/body bindings."""
-    out = _Classified({}, [], [], [], [])
+    out = Classified({}, [], [], [], [])
     for param in params:
         name = param.name
-        base, marker = _marker_of(param.annotation, f"{where}({name})")
+        base, marker = marker_of(param.annotation, f"{where}({name})")
         match marker:
             case Path(name=wire):
                 out.path_map[wire or name] = name
@@ -224,14 +224,14 @@ def _classify_params(
                 out.body_names.append(name)
             case None if name in placeholders:
                 out.path_map[name] = name
-            case None if _is_model(base):
+            case None if is_model(base):
                 out.inferred_models.append(name)
             case None:
                 out.query_slots.append(Slot(name, name))
     return out
 
 
-def _resolve_body(classified: _Classified, where: str) -> str | None:
+def resolve_body(classified: Classified, where: str) -> str | None:
     body_names = classified.body_names
     inferred = classified.inferred_models
     if not body_names and len(inferred) == 1:
@@ -249,7 +249,7 @@ def _resolve_body(classified: _Classified, where: str) -> str | None:
     return body_names[0] if body_names else None
 
 
-def _check_placeholders(
+def check_placeholders(
     path_map: dict[str, str],
     placeholders: tuple[str, ...],
     where: str,
@@ -287,8 +287,8 @@ def compile_endpoint(
             msg = f"{where}: *args/**kwargs are not allowed on endpoints"
             raise TypeError(msg)
 
-    classified = _classify_params(params, placeholders, where)
-    _check_placeholders(classified.path_map, placeholders, where)
+    classified = classify_params(params, placeholders, where)
+    check_placeholders(classified.path_map, placeholders, where)
 
     return RequestPlan(
         method=spec.method,
@@ -296,7 +296,7 @@ def compile_endpoint(
         path_names=tuple(classified.path_map[p] for p in placeholders),
         query_slots=tuple(classified.query_slots),
         header_slots=tuple(classified.header_slots),
-        body_name=_resolve_body(classified, where),
+        body_name=resolve_body(classified, where),
         static_headers=tuple({**class_headers, **spec.headers}.items()),
         raises_map={**class_raises, **spec.raises},
         arg_names=tuple(p.name for p in params),
@@ -306,5 +306,5 @@ def compile_endpoint(
             for p in params
             if p.default is not Parameter.empty
         ),
-        returns=_return_spec(fn),
+        returns=return_spec(fn),
     )
