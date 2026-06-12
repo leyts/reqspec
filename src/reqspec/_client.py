@@ -8,7 +8,7 @@ from urllib.parse import quote
 import niquests
 from pydantic import BaseModel
 
-from reqspec._compiler import RequestPlan, compile_endpoint
+from reqspec._compiler import RequestPlan, _adapter_for, compile_endpoint
 from reqspec._decorators import STASH_ATTR, EndpointSpec
 from reqspec._exceptions import APIError, raise_for_response
 
@@ -174,8 +174,7 @@ def _make_endpoint(plan: RequestPlan) -> _Fn:
         if plan.body_name is not None:
             payload = values[plan.body_name]
             if isinstance(payload, BaseModel):
-                # what `model_dump_json()` wraps, minus its bytes->str decode
-                data = payload.__pydantic_serializer__.to_json(payload)
+                data = _adapter_for(type(payload)).dump_json(payload)
                 headers.setdefault("Content-Type", "application/json")
             else:
                 json = payload
