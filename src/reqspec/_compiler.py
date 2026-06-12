@@ -6,8 +6,8 @@ endpoint. The per-call hot path only touches the resulting RequestPlan.
 
 import string
 from annotationlib import Format, ForwardRef, get_annotations
+from collections.abc import Callable
 from dataclasses import dataclass
-from enum import StrEnum, auto
 from inspect import Parameter, signature
 from typing import (
     TYPE_CHECKING,
@@ -31,56 +31,26 @@ MISSING = object()
 adapters: dict[object, TypeAdapter[object]] = {}
 
 
-class ReturnKind(StrEnum):
-    RAW = auto()
-    NONE = auto()
-    BYTES = auto()
-    TEXT = auto()
-    JSON = auto()
-    MODEL = auto()
+type ReturnLoader = Callable[[Response], object]
+"""Turns a successful Response into the endpoint's return value."""
 
 
-class ReturnSpec:
-    """How to turn a Response into the endpoint's return value."""
+def model_loader(adapter: TypeAdapter[object]) -> ReturnLoader:
+    return lambda response: adapter.validate_json(response.content or b"")
 
-    __slots__ = ("_adapter", "_fn", "kind")
 
-    def __init__(
-        self,
-        kind: ReturnKind,
-        adapter: TypeAdapter[object] | None = None,
-        fn: Fn | None = None,
-    ) -> None:
-        self.kind = kind
-        self._adapter = adapter
-        self._fn = fn
+def deferred_loader(fn: Fn) -> ReturnLoader:
+    """Resolve the return annotation on first call, then parse with it."""
+    adapter: TypeAdapter[object] | None = None
 
-    def load(self, response: Response) -> object:
-        """Parse a successful response per the return annotation."""
-        match self.kind:
-            case ReturnKind.MODEL:
-                adapter = self._adapter
-                if adapter is None:
-                    adapter = self._build_deferred()
-                return adapter.validate_json(response.content or b"")
-            case ReturnKind.RAW:
-                return response
-            case ReturnKind.NONE:
-                return None
-            case ReturnKind.BYTES:
-                return response.content
-            case ReturnKind.TEXT:
-                return response.text
-            case _:
-                return response.json()
+    def load(response: Response) -> object:
+        nonlocal adapter
+        if adapter is None:
+            hints = get_annotations(fn, format=Format.VALUE)
+            adapter = adapter_for(hints["return"])
+        return adapter.validate_json(response.content or b"")
 
-    def _build_deferred(self) -> TypeAdapter[object]:
-        if self._fn is None:  # pragma: no cover - defensive
-            msg = "deferred return type without source function"
-            raise TypeError(msg)
-        hints = get_annotations(self._fn, format=Format.VALUE)
-        self._adapter = adapter_for(hints["return"])
-        return self._adapter
+    return load
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,7 +76,7 @@ class RequestPlan:
     arg_names: tuple[str, ...]
     required: tuple[str, ...]
     defaults: tuple[tuple[str, object], ...]
-    returns: ReturnSpec
+    returns: ReturnLoader
 
 
 def split_template(
@@ -168,31 +138,32 @@ def is_unresolved(annotation: object) -> bool:
     return any(is_unresolved(arg) for arg in get_args(annotation))
 
 
-SENTINEL_KINDS: dict[object, ReturnKind] = {
-    Response: ReturnKind.RAW,
-    None: ReturnKind.NONE,
-    type(None): ReturnKind.NONE,
-    bytes: ReturnKind.BYTES,
-    str: ReturnKind.TEXT,
-    dict: ReturnKind.JSON,
+SENTINEL_LOADERS: dict[object, ReturnLoader] = {
+    Response: lambda response: response,
+    None: lambda _: None,
+    type(None): lambda _: None,
+    bytes: lambda response: response.content,
+    str: lambda response: response.text,
+    dict: lambda response: response.json(),
 }
 
 
-def return_spec(fn: Fn) -> ReturnSpec:
+def return_loader(fn: Fn) -> ReturnLoader:
+    """Choose how to parse responses from the return annotation."""
     annotation = get_annotations(fn, format=Format.FORWARDREF).get(
         "return", MISSING
     )
     if annotation is MISSING:
-        return ReturnSpec(ReturnKind.RAW)
+        return SENTINEL_LOADERS[Response]
     try:
-        kind = SENTINEL_KINDS.get(annotation)
+        loader = SENTINEL_LOADERS.get(annotation)
     except TypeError:
-        kind = None
-    if kind is not None:
-        return ReturnSpec(kind)
+        loader = None
+    if loader is not None:
+        return loader
     if is_unresolved(annotation):
-        return ReturnSpec(ReturnKind.MODEL, fn=fn)
-    return ReturnSpec(ReturnKind.MODEL, adapter=adapter_for(annotation))
+        return deferred_loader(fn)
+    return model_loader(adapter_for(annotation))
 
 
 class Classified(NamedTuple):
@@ -306,5 +277,5 @@ def compile_endpoint(
             for p in params
             if p.default is not Parameter.empty
         ),
-        returns=return_spec(fn),
+        returns=return_loader(fn),
     )

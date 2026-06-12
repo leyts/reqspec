@@ -191,6 +191,6 @@ def make_endpoint(plan: RequestPlan) -> Fn:
         status = response.status_code or 0  # None on unresolved lazy responses
         if status not in SUCCESS:
             raise_for_response(response, plan.raises_map)
-        return plan.returns.load(response)
+        return plan.returns(response)
 
     return endpoint
