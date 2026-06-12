@@ -7,12 +7,11 @@ endpoint. The per-call hot path only touches the resulting RequestPlan.
 import string
 from annotationlib import Format, ForwardRef, get_annotations
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from inspect import Parameter, Signature, signature
 from typing import (
     TYPE_CHECKING,
     Annotated,
-    NamedTuple,
     get_args,
     get_origin,
 )
@@ -168,12 +167,13 @@ def return_loader(fn: Fn) -> ReturnLoader:
     return model_loader(adapter_for(annotation))
 
 
-class Classified(NamedTuple):
-    path_map: dict[str, str]
-    query_slots: list[Slot]
-    header_slots: list[Slot]
-    body_names: list[str]
-    inferred_models: list[str]
+@dataclass(slots=True)
+class Classified:
+    path_map: dict[str, str] = field(default_factory=dict)
+    query_slots: list[Slot] = field(default_factory=list)
+    header_slots: list[Slot] = field(default_factory=list)
+    body_names: list[str] = field(default_factory=list)
+    inferred_models: list[str] = field(default_factory=list)
 
 
 def classify_params(
@@ -182,7 +182,7 @@ def classify_params(
     where: str,
 ) -> Classified:
     """Sort parameters into path/query/header/body bindings."""
-    out = Classified({}, [], [], [], [])
+    out = Classified()
     for param in params:
         name = param.name
         base, marker = marker_of(param.annotation, f"{where}({name})")
