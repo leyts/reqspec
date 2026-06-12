@@ -48,7 +48,7 @@ class Client:
         super().__init_subclass__(**kwargs)
         if base_url is not None:
             cls._reqspec_base_url = base_url
-        cls._reqspec_endpoints = dict(cls._reqspec_endpoints) | {
+        cls._reqspec_endpoints = cls._reqspec_endpoints | {
             name: member
             for name, member in vars(cls).items()
             if callable(member) and hasattr(member, STASH_ATTR)
@@ -76,6 +76,8 @@ class Client:
         self._base = base.rstrip("/")
         self._session = session if session is not None else niquests.Session()
         if headers:
+            # `.items()` sidesteps ty's overload resolution on niquests'
+            # `CaseInsensitiveDict.update`, which rejects a plain `Mapping`
             self._session.headers.update(headers.items())
         self._auth = auth
         self._timeout = timeout
