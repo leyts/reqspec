@@ -1,6 +1,7 @@
 """Client base class: endpoint compilation and the per-call hot path."""
 
 import functools
+from pathlib import PurePath
 from typing import TYPE_CHECKING, ClassVar, cast
 from urllib.parse import quote
 
@@ -118,9 +119,13 @@ def make_endpoint(plan: RequestPlan) -> Fn:
         values = bound.arguments
 
         pieces = [self._base]
-        for i, pyname in enumerate(plan.path_names):
+        for i, slot in enumerate(plan.path_slots):
             pieces.append(plan.url_parts[i])
-            pieces.append(quote(str(values[pyname]), safe=""))
+            value = values[slot.pyname]
+            text = (
+                value.as_posix() if isinstance(value, PurePath) else str(value)
+            )
+            pieces.append(quote(text, safe=slot.safe))
         pieces.append(plan.url_parts[-1])
         url = "".join(pieces)
 

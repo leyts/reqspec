@@ -15,13 +15,6 @@ def to_header_case(name: str) -> str:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class Path(Marker):
-    """Bind a parameter to a URL template placeholder."""
-
-    name: str | None = None
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
 class Query(Marker):
     """Bind a parameter to a query string key."""
 

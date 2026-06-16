@@ -9,6 +9,7 @@ from annotationlib import Format, ForwardRef, get_annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from inspect import Parameter, Signature, signature
+from pathlib import PurePath
 from typing import (
     TYPE_CHECKING,
     Annotated,
@@ -19,7 +20,7 @@ from typing import (
 from niquests import Response
 from pydantic import BaseModel, TypeAdapter
 
-from reqspec._markers import Body, Header, Marker, Path, Query
+from reqspec._markers import Body, Header, Marker, Query
 
 if TYPE_CHECKING:
     from reqspec._decorators import EndpointSpec, Fn
@@ -61,12 +62,20 @@ class Slot:
 
 
 @dataclass(frozen=True, slots=True)
+class PathSlot:
+    """A compiled URL placeholder binding."""
+
+    pyname: str
+    safe: str
+
+
+@dataclass(frozen=True, slots=True)
 class RequestPlan:
     """Everything needed to issue one endpoint's request."""
 
     method: str
     url_parts: tuple[str, ...]
-    path_names: tuple[str, ...]
+    path_slots: tuple[PathSlot, ...]
     query_slots: tuple[Slot, ...]
     header_slots: tuple[Slot, ...]
     body_name: str | None
@@ -121,6 +130,11 @@ def is_model(base: object) -> bool:
     return isinstance(base, type) and issubclass(base, BaseModel)
 
 
+def is_path_type(base: object) -> bool:
+    """Whether a placeholder's value is a slash-bearing path type."""
+    return isinstance(base, type) and issubclass(base, PurePath)
+
+
 def adapter_for(annotation: object) -> TypeAdapter[object]:
     try:
         cached = adapters.get(annotation)
@@ -169,7 +183,7 @@ def return_loader(fn: Fn) -> ReturnLoader:
 
 @dataclass(slots=True)
 class Classified:
-    path_map: dict[str, str] = field(default_factory=dict)
+    path_map: dict[str, PathSlot] = field(default_factory=dict)
     query_slots: list[Slot] = field(default_factory=list)
     header_slots: list[Slot] = field(default_factory=list)
     body_names: list[str] = field(default_factory=list)
@@ -187,8 +201,6 @@ def classify_params(
         name = param.name
         base, marker = marker_of(param.annotation, f"{where}({name})")
         match marker:
-            case Path(name=wire):
-                out.path_map[wire or name] = name
             case Query(name=wire):
                 out.query_slots.append(Slot(name, wire or name))
             case Header() as header:
@@ -196,7 +208,8 @@ def classify_params(
             case Body():
                 out.body_names.append(name)
             case None if name in placeholders:
-                out.path_map[name] = name
+                safe = "/" if is_path_type(base) else ""
+                out.path_map[name] = PathSlot(name, safe)
             case None if is_model(base):
                 out.inferred_models.append(name)
             case None:
@@ -223,15 +236,10 @@ def resolve_body(classified: Classified, where: str) -> str | None:
 
 
 def check_placeholders(
-    path_map: dict[str, str],
+    path_map: dict[str, PathSlot],
     placeholders: tuple[str, ...],
     where: str,
 ) -> None:
-    unknown = [p for p in path_map if p not in placeholders]
-    if unknown:
-        listed = ", ".join(f"{{{p}}}" for p in unknown)
-        msg = f"{where}: Path() targets unknown placeholders: {listed}"
-        raise TypeError(msg)
     unbound = [p for p in placeholders if p not in path_map]
     if unbound:
         listed = ", ".join(f"{{{p}}}" for p in unbound)
@@ -266,7 +274,7 @@ def compile_endpoint(
     return RequestPlan(
         method=spec.method,
         url_parts=url_parts,
-        path_names=tuple(classified.path_map[p] for p in placeholders),
+        path_slots=tuple(classified.path_map[p] for p in placeholders),
         query_slots=tuple(classified.query_slots),
         header_slots=tuple(classified.header_slots),
         body_name=resolve_body(classified, where),

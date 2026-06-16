@@ -11,14 +11,13 @@ from reqspec._decorators import (
     raises,
 )
 from reqspec._exceptions import APIError
-from reqspec._markers import Body, Header, Path, Query
+from reqspec._markers import Body, Header, Query
 
 __all__ = [
     "APIError",
     "Body",
     "Client",
     "Header",
-    "Path",
     "Query",
     "delete",
     "get",
