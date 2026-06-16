@@ -1,6 +1,6 @@
 [project]
 name = "reqspec"
-version = "0.1.0"
+version = "0.2.0"
 description = "A declarative HTTP client."
 readme = "README.md"
 requires-python = ">=3.14"
