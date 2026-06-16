@@ -18,12 +18,13 @@ from typing import (
 )
 
 from niquests import Response
+from niquests.structures import CaseInsensitiveDict
 from pydantic import BaseModel, TypeAdapter
 
 from reqspec._markers import Body, Header, Marker, Query
 
 if TYPE_CHECKING:
-    from reqspec._decorators import EndpointSpec, Fn
+    from reqspec._decorators import EndpointSpec, Fn, HeaderMap
     from reqspec._exceptions import APIError
 
 
@@ -79,7 +80,7 @@ class RequestPlan:
     query_slots: tuple[Slot, ...]
     header_slots: tuple[Slot, ...]
     body_name: str | None
-    static_headers: tuple[tuple[str, str], ...]
+    static_headers: tuple[tuple[str | bytes, str | bytes], ...]
     raises_map: dict[int, type[APIError]]
     signature: Signature
     returns: ReturnLoader
@@ -251,7 +252,7 @@ def compile_endpoint(
     fn: Fn,
     spec: EndpointSpec,
     *,
-    class_headers: dict[str, str],
+    class_headers: HeaderMap,
     class_raises: dict[int, type[APIError]],
 ) -> RequestPlan:
     """Compile one decorated stub into a frozen RequestPlan."""
@@ -271,6 +272,9 @@ def compile_endpoint(
     classified = classify_params(params, placeholders, where)
     check_placeholders(classified.path_map, placeholders, where)
 
+    merged_headers: HeaderMap = CaseInsensitiveDict(class_headers)
+    merged_headers.update(spec.headers)
+
     return RequestPlan(
         method=spec.method,
         url_parts=url_parts,
@@ -278,7 +282,7 @@ def compile_endpoint(
         query_slots=tuple(classified.query_slots),
         header_slots=tuple(classified.header_slots),
         body_name=resolve_body(classified, where),
-        static_headers=tuple({**class_headers, **spec.headers}.items()),
+        static_headers=tuple(merged_headers.items()),
         raises_map={**class_raises, **spec.raises},
         signature=sig.replace(parameters=params),
         returns=return_loader(fn),

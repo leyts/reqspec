@@ -6,13 +6,21 @@ Every decorator here only records metadata on the decorated function
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import cast
+from typing import TYPE_CHECKING, cast
+
+from niquests.structures import CaseInsensitiveDict
 
 from reqspec._exceptions import APIError
+
+if TYPE_CHECKING:
+    from niquests.typing import HeadersType
 
 STASH_ATTR = "__reqspec__"
 
 type Fn = Callable[..., object]
+
+type HeaderMap = CaseInsensitiveDict[str | bytes, str | bytes]
+"""Normalized header store covering niquests' str-or-bytes surface."""
 
 
 @dataclass(slots=True)
@@ -21,7 +29,7 @@ class EndpointSpec:
 
     method: str | None = None
     template: str | None = None
-    headers: dict[str, str] = field(default_factory=dict)
+    headers: HeaderMap = field(default_factory=CaseInsensitiveDict)
     raises: dict[int, type[APIError]] = field(default_factory=dict)
 
 
@@ -61,9 +69,9 @@ patch = http_method("PATCH")
 delete = http_method("DELETE")
 
 
-def headers[T: type | Fn](mapping: Mapping[str, str]) -> Callable[[T], T]:
+def headers[T: type | Fn](mapping: HeadersType) -> Callable[[T], T]:
     """Attach static headers to an endpoint or a whole client class."""
-    static = dict(mapping)
+    static: HeaderMap = CaseInsensitiveDict(mapping)
 
     def apply(target: T) -> T:
         apply_config(target, headers=static)
@@ -96,7 +104,7 @@ def raises[T: type | Fn](mapping: Mapping[int, object]) -> Callable[[T], T]:
 def apply_config(
     target: object,
     *,
-    headers: dict[str, str] | None = None,
+    headers: HeaderMap | None = None,
     raises: dict[int, type[APIError]] | None = None,
 ) -> None:
     if isinstance(target, type):

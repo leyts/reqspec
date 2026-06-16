@@ -5,17 +5,17 @@ from pathlib import PurePath
 from typing import TYPE_CHECKING, ClassVar, cast
 from urllib.parse import quote
 
-import niquests
+from niquests import Session
+from niquests.structures import CaseInsensitiveDict
 from pydantic import BaseModel
 
 from reqspec._compiler import RequestPlan, adapter_for, compile_endpoint
-from reqspec._decorators import STASH_ATTR, EndpointSpec, Fn
+from reqspec._decorators import STASH_ATTR, EndpointSpec, Fn, HeaderMap
 from reqspec._exceptions import APIError, raise_for_response
 
 if TYPE_CHECKING:
-    from collections.abc import Mapping
-
     from niquests.typing import (
+        HeadersType,
         HttpAuthenticationType,
         QueryParameterType,
         TimeoutType,
@@ -37,7 +37,7 @@ class Client:
 
     _reqspec_base_url: ClassVar[str | None] = None
     _reqspec_endpoints: ClassVar[dict[str, Fn]] = {}
-    _reqspec_headers: ClassVar[dict[str, str]] = {}
+    _reqspec_headers: ClassVar[HeaderMap] = CaseInsensitiveDict()
     _reqspec_raises: ClassVar[dict[int, type[APIError]]] = {}
 
     def __init_subclass__(
@@ -54,16 +54,16 @@ class Client:
             for name, member in vars(cls).items()
             if callable(member) and hasattr(member, STASH_ATTR)
         }
-        cls._reqspec_headers = dict(cls._reqspec_headers)
+        cls._reqspec_headers = CaseInsensitiveDict(cls._reqspec_headers)
         cls._reqspec_raises = dict(cls._reqspec_raises)
         compile_all(cls)
 
     def __init__(
         self,
         *,
-        session: niquests.Session | None = None,
+        session: Session | None = None,
         base_url: str | None = None,
-        headers: Mapping[str, str] | None = None,
+        headers: HeadersType | None = None,
         auth: HttpAuthenticationType | None = None,
         timeout: TimeoutType | None = None,
     ) -> None:
@@ -75,19 +75,18 @@ class Client:
             )
             raise TypeError(msg)
         self._base = base.rstrip("/")
-        self._session = session if session is not None else niquests.Session()
-        if headers:
-            # `.items()` sidesteps ty's overload resolution on niquests'
-            # `CaseInsensitiveDict.update`, which rejects a plain `Mapping`
-            self._session.headers.update(headers.items())
-        self._auth = auth
-        self._timeout = timeout
+        self._session = session if session is not None else Session()
+        self._session.headers.update(CaseInsensitiveDict(headers))
+        if auth is not None:
+            self._session.auth = auth
+        if timeout is not None:
+            self._session.timeout = timeout
 
     @classmethod
     def _reqspec_configure(
         cls,
         *,
-        headers: dict[str, str] | None = None,
+        headers: HeaderMap | None = None,
         raises: dict[int, type[APIError]] | None = None,
     ) -> None:
         """Apply config from class-level decorators and recompile."""
@@ -161,8 +160,6 @@ def make_endpoint(plan: RequestPlan) -> Fn:
             data=data,
             json=json,
             headers=headers or None,
-            auth=self._auth,
-            timeout=self._timeout,
         )
         status = response.status_code or 0  # None on unresolved lazy responses
         if status not in SUCCESS:
