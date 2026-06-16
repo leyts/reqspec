@@ -2,7 +2,7 @@
 
 import functools
 from pathlib import PurePath
-from typing import TYPE_CHECKING, ClassVar, cast
+from typing import TYPE_CHECKING, ClassVar
 from urllib.parse import quote
 
 from niquests import Session
@@ -17,7 +17,6 @@ if TYPE_CHECKING:
     from niquests.typing import (
         HeadersType,
         HttpAuthenticationType,
-        QueryParameterType,
         TimeoutType,
     )
 
@@ -128,15 +127,11 @@ def make_endpoint(plan: RequestPlan) -> Fn:
         pieces.append(plan.url_parts[-1])
         url = "".join(pieces)
 
-        # Niquests stringifies values itself; its stub type is narrower
-        params = cast(
-            "QueryParameterType",
-            {
-                slot.wire: value
-                for slot in plan.query_slots
-                if (value := values[slot.pyname]) is not None
-            },
-        )
+        params = {
+            slot.wire: value
+            for slot in plan.query_slots
+            if (value := values[slot.pyname]) is not None
+        }
         headers = dict(plan.static_headers)
         for slot in plan.header_slots:
             value = values[slot.pyname]
