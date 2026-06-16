@@ -128,7 +128,7 @@ def make_endpoint(plan: RequestPlan) -> Fn:
         pieces.append(plan.url_parts[-1])
         url = "".join(pieces)
 
-        # niquests stringifies values itself; its stub type is narrower
+        # Niquests stringifies values itself; its stub type is narrower
         params = cast(
             "QueryParameterType",
             {

@@ -20,7 +20,7 @@ STASH_ATTR = "__reqspec__"
 type Fn = Callable[..., object]
 
 type HeaderMap = CaseInsensitiveDict[str | bytes, str | bytes]
-"""Normalized header store covering niquests' str-or-bytes surface."""
+"""Normalized header store covering Niquests' str-or-bytes surface."""
 
 
 @dataclass(slots=True)

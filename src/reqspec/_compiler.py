@@ -263,7 +263,7 @@ def compile_endpoint(
     url_parts, placeholders = split_template(spec.template, where)
 
     sig = signature(fn, annotation_format=Format.FORWARDREF)
-    params = list(sig.parameters.values())[1:]  # drop self
+    params = list(sig.parameters.values())[1:]  # Drop self
     for param in params:
         if param.kind in (Parameter.VAR_POSITIONAL, Parameter.VAR_KEYWORD):
             msg = f"{where}: *args/**kwargs are not allowed on endpoints"
