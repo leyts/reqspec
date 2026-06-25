@@ -116,10 +116,11 @@ def make_endpoint(plan: RequestPlan) -> Fn:
         values = bound.arguments
 
         pieces = [self._base]
-        for i, slot in enumerate(plan.path_slots):
-            pieces.append(plan.url_parts[i])
-            value = values[slot.pyname]
-            pieces.append(quote(str(value), safe=slot.safe))
+        for url_part, slot in zip(
+            plan.url_parts, plan.path_slots, strict=False
+        ):
+            pieces.append(url_part)
+            pieces.append(quote(str(values[slot.pyname]), safe=slot.safe))
         pieces.append(plan.url_parts[-1])
         url = "".join(pieces)
 
