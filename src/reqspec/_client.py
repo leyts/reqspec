@@ -123,11 +123,7 @@ def make_endpoint(plan: RequestPlan) -> Fn:
         pieces.append(plan.url_parts[-1])
         url = "".join(pieces)
 
-        params = {
-            slot.wire: value
-            for slot in plan.query_slots
-            if (value := values[slot.pyname]) is not None
-        }
+        params = {slot.wire: values[slot.pyname] for slot in plan.query_slots}
         headers = dict(plan.static_headers)
         for slot in plan.header_slots:
             value = values[slot.pyname]
@@ -147,10 +143,10 @@ def make_endpoint(plan: RequestPlan) -> Fn:
         response = self._session.request(
             plan.method,
             url,
-            params=params or None,
+            params=params,
             data=data,
             json=json,
-            headers=headers or None,
+            headers=headers,
         )
         status = response.status_code or 0  # None on unresolved lazy responses
         if status not in SUCCESS:
