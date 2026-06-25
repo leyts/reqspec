@@ -9,7 +9,6 @@ from annotationlib import Format, ForwardRef, get_annotations
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from inspect import Parameter, Signature, signature
-from pathlib import PurePath
 from typing import (
     TYPE_CHECKING,
     Annotated,
@@ -21,7 +20,7 @@ from niquests import Response
 from niquests.structures import CaseInsensitiveDict
 from pydantic import BaseModel, TypeAdapter
 
-from reqspec._markers import Body, Header, Marker, Query
+from reqspec._markers import Body, Header, Marker, Path, Query
 
 if TYPE_CHECKING:
     from reqspec._decorators import EndpointSpec, Fn, HeaderMap
@@ -131,11 +130,6 @@ def is_model(base: object) -> bool:
     return isinstance(base, type) and issubclass(base, BaseModel)
 
 
-def is_path_type(base: object) -> bool:
-    """Whether a placeholder's value is a slash-bearing path type."""
-    return isinstance(base, type) and issubclass(base, PurePath)
-
-
 def adapter_for(annotation: object) -> TypeAdapter[object]:
     try:
         cached = adapters.get(annotation)
@@ -208,9 +202,16 @@ def classify_params(
                 out.header_slots.append(Slot(name, header.wire_name(name)))
             case Body():
                 out.body_names.append(name)
+            case Path() if name not in placeholders:
+                msg = (
+                    f"{where}: Path() parameter {name!r} has no matching"
+                    f" {{{name}}} placeholder"
+                )
+                raise TypeError(msg)
+            case Path(safe=safe):
+                out.path_map[name] = PathSlot(name, "/" if safe else "")
             case None if name in placeholders:
-                safe = "/" if is_path_type(base) else ""
-                out.path_map[name] = PathSlot(name, safe)
+                out.path_map[name] = PathSlot(name, "")
             case None if is_model(base):
                 out.inferred_models.append(name)
             case None:

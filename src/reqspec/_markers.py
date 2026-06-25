@@ -40,3 +40,10 @@ class Header(Marker):
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Body(Marker):
     """Bind a parameter to the JSON request body."""
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Path(Marker):
+    """Bind a parameter to a URL path placeholder."""
+
+    safe: bool = False
